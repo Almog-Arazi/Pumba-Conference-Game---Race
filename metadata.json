@@ -1,0 +1,7 @@
+{
+  "name": "Remix:   משחק האפסים עם דמויות - סגנון של pumba",
+  "description": "משחק האפסים",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
