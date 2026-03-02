@@ -43,11 +43,11 @@ declare global {
 const CALIBRATION_KEY = 'pumba_cam_calibration';
 
 const DEFAULT_CALIBRATION: CameraCalibration = {
-  camY:  23.78,
+  camY:  3.02,
   camZ:  8,
-  fov:   105.3,
+  fov:   110.0,
   lookZ: -30,
-  lookY: 0,
+  lookY: 7.1,
 };
 
 function loadCalibration(): CameraCalibration {
@@ -156,23 +156,73 @@ function App() {
   const [isCalibrating, setIsCalibrating] = useState(false);
   const [calibration, setCalibration]     = useState<CameraCalibration>(loadCalibration);
 
-  // ─── Loading gate ────────────────────────────────────────────────────────────
+  // ─── Loading gate — preload all game assets ─────────────────────────────────
   const [isReady, setIsReady]     = useState(false);
   const [fadeOut, setFadeOut]     = useState(false);
-  const readyTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const [loadProgress, setLoadProgress] = useState(0);
+  const readyFired = useRef(false);
 
   const markReady = useCallback(() => {
-    if (readyTimeout.current) return; // already triggered
-    readyTimeout.current = setTimeout(() => {
-      setFadeOut(true);                       // start fade-out
-      setTimeout(() => setIsReady(true), 600); // remove overlay after animation
-    }, 300); // small buffer so first frame renders
+    if (readyFired.current) return;
+    readyFired.current = true;
+    setLoadProgress(100);
+    setTimeout(() => {
+      setFadeOut(true);
+      setTimeout(() => setIsReady(true), 600);
+    }, 200);
   }, []);
 
-  // Fallback: if video never fires canplaythrough (e.g. blocked autoplay), unlock after 6s
   useEffect(() => {
-    const fallback = setTimeout(markReady, 6000);
-    return () => clearTimeout(fallback);
+    let cancelled = false;
+    const IMAGES = [
+      '/logo_2.svg', '/logo_1.svg', '/logo.png', '/game-logo.png',
+      '/pumba_icon.png', '/pumba-logo.png', '/pumba-brand.jpg',
+      '/pumba-sensor.jpg', '/favicon.jpg', '/bonus.jpg',
+      '/car-overlay.jpg', '/street-bg.jpeg', '/street-bg.png',
+      '/bg-image.png', '/instructions-bg.jpeg', '/share-bg.jpg', '/sensor.jpg',
+    ];
+    const VIDEOS = ['/bg-video.mp4', '/bg-video-2.mp4', '/intro-1.mp4', '/intro-2.mp4'];
+    const AUDIO  = ['/bg-music.mp3', '/traffic-ambience.mp3', '/game-over.mp3'];
+
+    const total = IMAGES.length + VIDEOS.length + AUDIO.length;
+    let loaded = 0;
+    const tick = () => {
+      loaded++;
+      if (!cancelled) setLoadProgress(Math.round((loaded / total) * 100));
+      if (loaded >= total && !cancelled) markReady();
+    };
+
+    // Preload images
+    IMAGES.forEach(src => {
+      const img = new Image();
+      img.onload = img.onerror = tick;
+      img.src = src;
+    });
+
+    // Preload videos (wait for enough data to play through)
+    VIDEOS.forEach(src => {
+      const vid = document.createElement('video');
+      vid.preload = 'auto';
+      vid.muted = true;
+      vid.playsInline = true;
+      vid.oncanplaythrough = () => { vid.oncanplaythrough = null; tick(); };
+      vid.onerror = tick;
+      vid.src = src;
+      vid.load();
+    });
+
+    // Preload audio
+    AUDIO.forEach(src => {
+      const a = new Audio();
+      a.preload = 'auto';
+      a.oncanplaythrough = () => { a.oncanplaythrough = null; tick(); };
+      a.onerror = tick;
+      a.src = src;
+    });
+
+    // Fallback: don't block forever (max 12s)
+    const fallback = setTimeout(markReady, 12000);
+    return () => { cancelled = true; clearTimeout(fallback); };
   }, [markReady]);
 
   // activeSlot drives which video is shown; the other buffers silently
@@ -217,10 +267,10 @@ function App() {
     setActiveSlot(inactiveSlot);
   }, [activeSlot]);
 
-  // F key shortcut
+  // F9 key shortcut for calibration (avoids conflict with typing)
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      if (e.key === 'f' || e.key === 'F') {
+      if (e.key === 'F9') {
         setIsCalibrating(v => {
           if (!v) calBeforeEdit.current = calibration; // snapshot on open
           return !v;
@@ -272,7 +322,6 @@ function App() {
           playsInline
           onTimeUpdate={() => handleTimeUpdate(slotIdx)}
           onEnded={() => handleEnded(slotIdx)}
-          onCanPlayThrough={slotIdx === 0 ? markReady : undefined}
         />
       ))}
 
@@ -288,12 +337,13 @@ function App() {
             className="w-52 md:w-64"
             style={{ animation: 'pulse-glow 2s ease-in-out infinite' }}
           />
-          <div className="mt-10 w-40 h-[3px] rounded bg-white/10 overflow-hidden">
+          <div className="mt-10 w-48 h-[3px] rounded bg-white/10 overflow-hidden">
             <div
-              className="h-full w-2/5 rounded"
-              style={{ background: '#00bfff', animation: 'loader-slide 1.2s ease-in-out infinite' }}
+              className="h-full rounded transition-all duration-300 ease-out"
+              style={{ background: '#00bfff', width: `${loadProgress}%` }}
             />
           </div>
+          <span className="mt-3 text-xs text-white/40 font-mono">{loadProgress}%</span>
         </div>
       )}
 
