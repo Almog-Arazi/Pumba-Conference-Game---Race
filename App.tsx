@@ -156,6 +156,24 @@ function App() {
   const [isCalibrating, setIsCalibrating] = useState(false);
   const [calibration, setCalibration]     = useState<CameraCalibration>(loadCalibration);
 
+  // ─── Loading gate ────────────────────────────────────────────────────────────
+  const [isReady, setIsReady]     = useState(false);
+  const [fadeOut, setFadeOut]     = useState(false);
+  const readyTimeout = useRef<ReturnType<typeof setTimeout>>();
+
+  const markReady = useCallback(() => {
+    if (readyTimeout.current) return; // already triggered
+    readyTimeout.current = setTimeout(() => {
+      setFadeOut(true);                       // start fade-out
+      setTimeout(() => setIsReady(true), 600); // remove overlay after animation
+    }, 300); // small buffer so first frame renders
+  }, []);
+
+  // Fallback: if video never fires canplaythrough (e.g. blocked autoplay), unlock after 6s
+  useEffect(() => {
+    const fallback = setTimeout(markReady, 6000);
+    return () => clearTimeout(fallback);
+  }, [markReady]);
 
   // activeSlot drives which video is shown; the other buffers silently
   const [activeSlot, setActiveSlot] = useState<0 | 1>(0); // 0 = videoA, 1 = videoB
@@ -254,8 +272,30 @@ function App() {
           playsInline
           onTimeUpdate={() => handleTimeUpdate(slotIdx)}
           onEnded={() => handleEnded(slotIdx)}
+          onCanPlayThrough={slotIdx === 0 ? markReady : undefined}
         />
       ))}
+
+      {/* Loading overlay */}
+      {!isReady && (
+        <div
+          className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black transition-opacity duration-500"
+          style={{ opacity: fadeOut ? 0 : 1 }}
+        >
+          <img
+            src="/logo_2.svg"
+            alt="Pumba"
+            className="w-52 md:w-64"
+            style={{ animation: 'pulse-glow 2s ease-in-out infinite' }}
+          />
+          <div className="mt-10 w-40 h-[3px] rounded bg-white/10 overflow-hidden">
+            <div
+              className="h-full w-2/5 rounded"
+              style={{ background: '#00bfff', animation: 'loader-slide 1.2s ease-in-out infinite' }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Subtle dark gradient at the very bottom so the 3D road blends in */}
       <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent z-[1] pointer-events-none" />
