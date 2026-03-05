@@ -15,6 +15,7 @@ import { Effects } from './components/World/Effects';
 import { HUD } from './components/UI/HUD';
 import { CalibrationOverlay, CameraCalibration } from './components/UI/CalibrationOverlay';
 import { useStore } from './store';
+import { GameStatus } from './types';
 import { GestureController } from './components/System/GestureController';
 
 // Augment JSX namespace to include Three.js elements for R3F
@@ -267,19 +268,32 @@ function App() {
     setActiveSlot(inactiveSlot);
   }, [activeSlot]);
 
-  // F9 key shortcut for calibration (avoids conflict with typing)
+  // "D" key shortcut for road vanishing-point calibration — only during gameplay
+  const gameStatus = useStore(s => s.status);
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      if (e.key === 'F9') {
+      if (e.key === 'd' || e.key === 'D') {
+        // Block when user might be typing (registration / intro screens)
+        if (gameStatus === GameStatus.REGISTER || gameStatus === GameStatus.INTRO) return;
         setIsCalibrating(v => {
           if (!v) calBeforeEdit.current = calibration; // snapshot on open
           return !v;
         });
       }
     };
+    const hF = (e: KeyboardEvent) => {
+      if (e.key === 'f' || e.key === 'F') {
+        if (gameStatus === GameStatus.REGISTER || gameStatus === GameStatus.INTRO) return;
+        window.location.href = '/calibrate';
+      }
+    };
     window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  }, [calibration]);
+    window.addEventListener('keydown', hF);
+    return () => {
+      window.removeEventListener('keydown', h);
+      window.removeEventListener('keydown', hF);
+    };
+  }, [calibration, gameStatus]);
 
   // Snapshot calibration at the moment F-mode opens, so Cancel can revert
   const calBeforeEdit = useRef<CameraCalibration>(calibration);

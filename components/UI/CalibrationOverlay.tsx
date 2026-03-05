@@ -404,7 +404,7 @@ export const CalibrationOverlay: React.FC<Props> = ({ initialCalibration, onAppl
 
       {/* F badge */}
       <div className="absolute top-4 right-36 bg-[#42C8BE] text-black font-black text-xs px-3 py-1.5 rounded-full shadow-lg tracking-widest">
-        F MODE
+        D MODE
       </div>
     </div>
   );
